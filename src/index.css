@@ -1,57 +1,23 @@
 :root {
-  --bg: #f4f1fb;
-  --surface: #ffffff;
-  --surface-2: #f6f3fc;
-  --text: #1f1b33;
-  --muted: #6b6787;
-  --border: #e2ddf0;
-  --primary: #ff6b1a;
-  --primary-hover: #ee5a08;
-  --primary-ink: #ffffff;
-  --good: #16824a;
-  --good-bg: #dcf5e6;
-  --bad: #c9302a;
-  --bad-bg: #fde4e1;
-  --gold: #f2b100;
-  /* Chữ màu vàng đủ tương phản trên nền sáng */
-  --gold-ink: #9a6a00;
-  --shadow: 0 14px 34px -16px rgba(40, 20, 90, 0.35);
-  --radius: 20px;
-  --font: 'Baloo 2', system-ui, 'Segoe UI', Roboto, sans-serif;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #12101f;
-    --surface: #1d1a30;
-    --surface-2: #26223d;
-    --text: #f1eefc;
-    --muted: #a6a1c2;
-    --border: #35304f;
-    --good: #5fd894;
-    --good-bg: #173a28;
-    --bad: #ff7a70;
-    --bad-bg: #3d1a1a;
-    --gold-ink: #ffc93d;
-    --shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.7);
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme='dark'] {
+  /* Giao diện luôn ở chế độ tối (không theo cài đặt sáng/tối của máy) */
   --bg: #12101f;
   --surface: #1d1a30;
   --surface-2: #26223d;
   --text: #f1eefc;
   --muted: #a6a1c2;
   --border: #35304f;
+  --primary: #ff6b1a;
+  --primary-hover: #ee5a08;
+  --primary-ink: #ffffff;
   --good: #5fd894;
   --good-bg: #173a28;
   --bad: #ff7a70;
   --bad-bg: #3d1a1a;
+  --gold: #f2b100;
   --gold-ink: #ffc93d;
   --shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.7);
+  --radius: 20px;
+  --font: 'Baloo 2', system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: dark;
 }
 

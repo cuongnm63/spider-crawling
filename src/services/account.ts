@@ -10,7 +10,6 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
-  writeBatch,
   type Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore'
@@ -25,8 +24,10 @@ import { auth, db } from './firebase.ts'
  *   families/{uid}/kids/{kidId}/redemptions/{id}     mỗi lần đổi quà
  */
 
-/** Số sao nhận được mỗi lần thắng */
+/** Số sao nhận được mỗi lần thắng (chế độ thi đấu) */
 export const STARS_PER_WIN = 1
+/** Số sao bị trừ mỗi lần thua (chế độ thi đấu); số sao không bao giờ âm */
+export const STARS_PER_LOSS = 1
 
 export interface Kid {
   id: string
@@ -116,23 +117,28 @@ export async function addKid(uid: string, name: string): Promise<string> {
 
 // ---------- Lượt chơi & sao ----------
 
-/** Lưu một lượt chơi; thắng ở chế độ thi đấu thì cộng STARS_PER_WIN sao. Trả về số sao được cộng. */
+/**
+ * Lưu một lượt chơi. Chế độ thi đấu: thắng cộng STARS_PER_WIN sao, thua trừ STARS_PER_LOSS sao
+ * (còn 0 sao thì không trừ nữa). Trả về số sao thực sự thay đổi (âm khi bị trừ).
+ */
 export async function recordPlay(uid: string, kidId: string, play: PlayRecord): Promise<number> {
-  const earned = play.won && play.config.mode === 'compete' ? STARS_PER_WIN : 0
-  const batch = writeBatch(requireDb())
-  batch.set(doc(collection(kidDoc(uid, kidId), 'plays')), {
-    ...play,
-    starsEarned: earned,
-    createdAt: serverTimestamp(),
+  const compete = play.config.mode === 'compete'
+  const kidRef = kidDoc(uid, kidId)
+  const playRef = doc(collection(kidRef, 'plays'))
+  return runTransaction(requireDb(), async (tx) => {
+    const snap = await tx.get(kidRef)
+    const stars = Number(snap.data()?.stars ?? 0)
+    let change = 0
+    if (compete) change = play.won ? STARS_PER_WIN : -Math.min(STARS_PER_LOSS, stars)
+    tx.set(playRef, { ...play, starsEarned: change, createdAt: serverTimestamp() })
+    tx.update(kidRef, {
+      plays: increment(1),
+      wins: increment(play.won ? 1 : 0),
+      stars: stars + change,
+      totalStars: increment(Math.max(0, change)),
+    })
+    return change
   })
-  batch.update(kidDoc(uid, kidId), {
-    plays: increment(1),
-    wins: increment(play.won ? 1 : 0),
-    stars: increment(earned),
-    totalStars: increment(earned),
-  })
-  await batch.commit()
-  return earned
 }
 
 // ---------- Đổi quà ----------

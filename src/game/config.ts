@@ -18,7 +18,7 @@ export type Mode = 'practice' | 'compete'
 
 export const MODE_OPTIONS: { value: Mode; label: string; icon: string; hint: string }[] = [
   { value: 'practice', label: 'Luyện tập', icon: '🧩', hint: 'Không tính giờ, không tính sao' },
-  { value: 'compete', label: 'Thi đấu', icon: '🏆', hint: 'Có đồng hồ, thắng được ★ sao' },
+  { value: 'compete', label: 'Thi đấu', icon: '🏆', hint: 'Có đồng hồ, thắng +1 ★, thua −1 ★' },
 ]
 
 export interface GameConfig {
@@ -30,7 +30,7 @@ export interface GameConfig {
   blank: BlankMode
   /** Số bước (điểm) cần leo để thắng */
   stepsToWin: number
-  /** Số lần được phép sai; sai quá số này sẽ bị lửa đốt */
+  /** Lửa nằm dưới vạch xuất phát maxMistakes + 1 bước: tụt tới đó là bị đốt (đúng thì leo lên lại) */
   maxMistakes: number
   /** Số bước bị tụt xuống mỗi lần trả lời sai */
   slideOnWrong: number
@@ -78,8 +78,14 @@ export interface ConfigField {
 
 export const CONFIG_FIELDS: ConfigField[] = [
   { key: 'stepsToWin', label: 'Số bước để thắng', hint: 'Leo đủ số bước này là về đích', min: 3, max: 30 },
-  { key: 'maxMistakes', label: 'Số lần được sai', hint: 'Sai quá số lần này sẽ bị lửa đốt', min: 0, max: 10 },
-  { key: 'slideOnWrong', label: 'Tụt khi sai', hint: 'Số bước bị tụt mỗi lần sai', min: 0, max: 5 },
+  {
+    key: 'maxMistakes',
+    label: 'Số lần được sai',
+    hint: 'Ví dụ 3: tụt quá 3 bước dưới vạch xuất phát là rơi vào lửa',
+    min: 0,
+    max: 10,
+  },
+  { key: 'slideOnWrong', label: 'Tụt khi sai', hint: 'Số bước bị tụt mỗi lần sai', min: 1, max: 5 },
   { key: 'maxSum', label: 'Tính trong phạm vi', hint: 'Số lớn nhất trong phép tính', min: 2, max: 20 },
   {
     key: 'timeLimit',

@@ -6,10 +6,12 @@ import {
   OPERATION_OPTIONS,
   timeLimitOf,
   type GameConfig,
+  type NumericKey,
 } from '../game/config.ts'
+import { Modal } from './Modal.tsx'
 import { factTable, type Op, type Question, type Slot } from '../game/questions.ts'
 import { useEffect, useState } from 'react'
-import type { GameState } from '../game/game.ts'
+import { fireStep, type GameState } from '../game/game.ts'
 import { sfx } from '../game/sound.ts'
 
 /** Bắt đầu kêu tích tắc khi còn số giây này */
@@ -60,10 +62,12 @@ interface MenuProps {
   starHint: string
   settings: GameConfig
   onChange: (config: GameConfig) => void
+  /** Mở hộp thoại cài đặt (phụ huynh làm phép nhân trước) */
+  onEditSettings: () => void
   onStart: () => void
 }
 
-export function MenuPanel({ starHint, settings, onChange, onStart }: MenuProps) {
+export function MenuPanel({ starHint, settings, onChange, onEditSettings, onStart }: MenuProps) {
   const { stepsToWin, maxMistakes, slideOnWrong, maxSum, operation, mode } = settings
   const compete = mode === 'compete'
   const opRule = OPERATION_OPTIONS.find((o) => o.value === operation)?.rule
@@ -94,34 +98,89 @@ export function MenuPanel({ starHint, settings, onChange, onStart }: MenuProps) 
 
       <ul className="rules">
         <li>
-          Trả lời đúng {opRule} trong phạm vi {maxSum}: leo lên 1 bước.
+          Trả lời đúng {opRule} trong phạm vi {maxSum}: leo lên 1 bước. Càng lên cao câu hỏi càng khó.
         </li>
-        <li>{slideOnWrong > 0 ? `Trả lời sai: tụt xuống ${slideOnWrong} bước.` : 'Trả lời sai: đứng yên.'}</li>
+        <li>Trả lời sai: tụt xuống {slideOnWrong} bước. Trả lời đúng: leo lên lại 1 bước.</li>
         <li>Leo đủ {stepsToWin} bước là thắng.</li>
         {compete && <li>Mỗi câu có {settings.timeLimit} giây, hết giờ tính là sai.</li>}
         <li>
           {maxMistakes > 0
-            ? `Được sai ${maxMistakes} lần, sai lần thứ ${maxMistakes + 1} sẽ bị lửa đốt.`
-            : 'Không được sai lần nào, sai là bị lửa đốt.'}
+            ? `Dưới chân có lửa: tụt xuống quá ${maxMistakes} bước dưới vạch xuất phát là bị lửa đốt.`
+            : 'Dưới chân có lửa: tụt xuống dưới vạch xuất phát là bị lửa đốt.'}
         </li>
         {compete ? (
           <li className="rule-star">{starHint}</li>
         ) : (
-          <li>Luyện tập thoải mái, không tính giờ và không tính sao.</li>
+          <li>Luyện tập thoải mái: có bảng tính bên cạnh, không tính giờ và không tính sao.</li>
         )}
       </ul>
 
-      <section className="settings" aria-labelledby="settings-title">
-        <div className="settings-head">
-          <h2 id="settings-title">Cài đặt</h2>
-          <button type="button" className="link" onClick={() => onChange({ ...DEFAULT_CONFIG })}>
-            Mặc định
-          </button>
-        </div>
+      <SettingsSummary settings={settings} onEdit={onEditSettings} />
+
+      <button type="button" className="primary" onClick={onStart}>
+        {compete ? 'Bắt đầu thi đấu!' : 'Bắt đầu luyện tập!'}
+      </button>
+    </div>
+  )
+}
+
+/** Ô cài đặt gọn: tóm tắt các cài đặt hiện tại, bấm vào để chỉnh. */
+function SettingsSummary({ settings, onEdit }: { settings: GameConfig; onEdit: () => void }) {
+  const chips = [
+    settings.operation === 'add' ? 'Phép cộng' : settings.operation === 'sub' ? 'Phép trừ' : 'Cộng và trừ',
+    settings.blank === 'result' ? 'Tìm kết quả' : settings.blank === 'operand' ? 'Ô trống' : 'Kết quả + ô trống',
+    `Phạm vi ${settings.maxSum}`,
+    `${settings.stepsToWin} bước`,
+    `Sai tối đa ${settings.maxMistakes}`,
+    `Sai tụt ${settings.slideOnWrong}`,
+    ...(settings.mode === 'compete' ? [`⏱ ${settings.timeLimit}s mỗi câu`] : []),
+    settings.sound ? '🔊 Có tiếng' : '🔇 Tắt tiếng',
+  ]
+  return (
+    <button type="button" className="settings-box" onClick={onEdit}>
+      <span className="settings-box-head">
+        <span className="settings-box-title">⚙️ Cài đặt</span>
+        <span className="settings-box-edit">🔒 Phụ huynh chỉnh</span>
+      </span>
+      <span className="chips">
+        {chips.map((c) => (
+          <span key={c} className="chip">
+            {c}
+          </span>
+        ))}
+      </span>
+    </button>
+  )
+}
+
+interface SettingsDialogProps {
+  settings: GameConfig
+  onChange: (config: GameConfig) => void
+  onClose: () => void
+}
+
+/** Hộp thoại chỉnh toàn bộ cài đặt (thay đổi được áp dụng ngay). */
+export function SettingsDialog({ settings, onChange, onClose }: SettingsDialogProps) {
+  const compete = settings.mode === 'compete'
+  return (
+    <Modal labelledBy="settings-title" onClose={onClose} className="settings-modal">
+      <div className="settings-head">
+        <h2 id="settings-title">⚙️ Cài đặt</h2>
+        <button
+          type="button"
+          className="link"
+          onClick={() => onChange({ ...DEFAULT_CONFIG, mode: settings.mode, sound: settings.sound })}
+        >
+          Mặc định
+        </button>
+      </div>
+
+      <div className="settings-group">
+        <h3>Câu hỏi</h3>
         <Segmented
           label="Phép tính"
           hint="Cả hai: mỗi câu ngẫu nhiên cộng hoặc trừ"
-          value={operation}
+          value={settings.operation}
           options={OPERATION_OPTIONS}
           onChange={(v) => onChange({ ...settings, operation: v })}
         />
@@ -132,37 +191,23 @@ export function MenuPanel({ starHint, settings, onChange, onStart }: MenuProps) 
           options={BLANK_OPTIONS}
           onChange={(v) => onChange({ ...settings, blank: v })}
         />
-        {CONFIG_FIELDS.filter((f) => compete || !f.competeOnly).map((f) => {
-          const value = settings[f.key]
-          const step = f.step ?? 1
-          return (
-            <div className="stepper" key={f.key}>
-              <div>
-                <div className="stepper-label">{f.label}</div>
-                <div className="stepper-hint">{f.hint}</div>
-              </div>
-              <div className="stepper-ctrl">
-                <button
-                  type="button"
-                  aria-label={`Giảm ${f.label}`}
-                  disabled={value <= f.min}
-                  onClick={() => onChange({ ...settings, [f.key]: Math.max(f.min, value - step) })}
-                >
-                  −
-                </button>
-                <output aria-live="polite">{f.format ? f.format(value) : value}</output>
-                <button
-                  type="button"
-                  aria-label={`Tăng ${f.label}`}
-                  disabled={value >= f.max}
-                  onClick={() => onChange({ ...settings, [f.key]: Math.min(f.max, value + step) })}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          )
-        })}
+        <Stepper settings={settings} onChange={onChange} fieldKey="maxSum" />
+      </div>
+
+      <div className="settings-group">
+        <h3>Luật chơi</h3>
+        <Stepper settings={settings} onChange={onChange} fieldKey="stepsToWin" />
+        <Stepper settings={settings} onChange={onChange} fieldKey="maxMistakes" />
+        <Stepper settings={settings} onChange={onChange} fieldKey="slideOnWrong" />
+        {compete ? (
+          <Stepper settings={settings} onChange={onChange} fieldKey="timeLimit" />
+        ) : (
+          <p className="settings-note">Đồng hồ đếm giờ chỉ có ở chế độ Thi đấu.</p>
+        )}
+      </div>
+
+      <div className="settings-group">
+        <h3>Khác</h3>
         <Segmented
           label="Âm thanh"
           hint="Tiếng đúng/sai, sắp hết giờ, chiến thắng"
@@ -170,11 +215,53 @@ export function MenuPanel({ starHint, settings, onChange, onStart }: MenuProps) 
           options={SOUND_OPTIONS}
           onChange={(v) => onChange({ ...settings, sound: v === 'on' })}
         />
-      </section>
+      </div>
 
-      <button type="button" className="primary" onClick={onStart}>
-        {compete ? 'Bắt đầu thi đấu!' : 'Bắt đầu luyện tập!'}
+      <button type="button" className="primary" onClick={onClose}>
+        Xong
       </button>
+    </Modal>
+  )
+}
+
+function Stepper({
+  settings,
+  onChange,
+  fieldKey,
+}: {
+  settings: GameConfig
+  onChange: (config: GameConfig) => void
+  fieldKey: NumericKey
+}) {
+  const f = CONFIG_FIELDS.find((c) => c.key === fieldKey)
+  if (!f) return null
+  const value = settings[f.key]
+  const step = f.step ?? 1
+  return (
+    <div className="stepper">
+      <div>
+        <div className="stepper-label">{f.label}</div>
+        <div className="stepper-hint">{f.hint}</div>
+      </div>
+      <div className="stepper-ctrl">
+        <button
+          type="button"
+          aria-label={`Giảm ${f.label}`}
+          disabled={value <= f.min}
+          onClick={() => onChange({ ...settings, [f.key]: Math.max(f.min, value - step) })}
+        >
+          −
+        </button>
+        <output aria-live="polite">{f.format ? f.format(value) : value}</output>
+        <button
+          type="button"
+          aria-label={`Tăng ${f.label}`}
+          disabled={value >= f.max}
+          onClick={() => onChange({ ...settings, [f.key]: Math.min(f.max, value + step) })}
+        >
+          +
+        </button>
+      </div>
     </div>
   )
 }
@@ -186,25 +273,25 @@ interface PlayProps {
   soundOn: boolean
   onToggleSound: () => void
   onAnswer: (value: number) => void
-  onMenu: () => void
 }
 
 function feedbackMessage(state: GameState): string {
-  const { feedback, question, config, step, mistakes } = state
+  const { feedback, question, config, step } = state
   if (!feedback) return 'Chọn đáp án đúng để leo lên (có thể bấm phím 1–4).'
   if (feedback.correct) {
     return step >= config.stepsToWin ? 'Tuyệt vời! Về đích rồi!' : 'Đúng rồi! Leo lên 1 bước.'
   }
   const reveal = `${feedback.picked === null ? 'Hết giờ!' : 'Sai rồi!'} ${question.a} ${opSign(question.op)} ${question.b} = ${question.result}.`
-  if (mistakes > config.maxMistakes) return `${reveal} Hết lượt sai, lửa bùng lên!`
-  return config.slideOnWrong > 0 ? `${reveal} Tụt xuống ${config.slideOnWrong} bước.` : reveal
+  if (step <= fireStep(config)) return `${reveal} Rơi xuống lửa rồi!`
+  return `${reveal} Tụt xuống ${config.slideOnWrong} bước.`
 }
 
-export function PlayPanel({ state, onTimeout, soundOn, onToggleSound, onAnswer, onMenu }: PlayProps) {
-  const { question, feedback, config, step, mistakes } = state
-  const remaining = Math.max(0, config.maxMistakes - mistakes)
+export function PlayPanel({ state, onTimeout, soundOn, onToggleSound, onAnswer }: PlayProps) {
+  const { question, feedback, config, step } = state
   const status = feedback ? (feedback.correct ? 'good' : 'bad') : ''
   const timeLimit = timeLimitOf(config)
+  // Không hiện số lần sai: bé chỉ thấy mình đang ở đâu so với đích (và lửa trong cảnh)
+  const shown = Math.max(0, step)
 
   return (
     <div className="play">
@@ -212,23 +299,11 @@ export function PlayPanel({ state, onTimeout, soundOn, onToggleSound, onAnswer, 
         <div className="stat">
           <span className="stat-label">Điểm</span>
           <span className="stat-value">
-            {step}
+            {shown}
             <small>/{config.stepsToWin}</small>
           </span>
           <div className="progress" aria-hidden="true">
-            <div style={{ width: `${(Math.min(step, config.stepsToWin) / config.stepsToWin) * 100}%` }} />
-          </div>
-        </div>
-        <div className="stat">
-          <span className="stat-label">Còn được sai</span>
-          <span className="stat-value">
-            {remaining}
-            <small> lần</small>
-          </span>
-          <div className="lives" aria-hidden="true">
-            {Array.from({ length: config.maxMistakes }, (_, i) => (
-              <span key={i} className={i < mistakes ? 'life used' : 'life'} />
-            ))}
+            <div style={{ width: `${(Math.min(shown, config.stepsToWin) / config.stepsToWin) * 100}%` }} />
           </div>
         </div>
       </div>
@@ -268,13 +343,11 @@ export function PlayPanel({ state, onTimeout, soundOn, onToggleSound, onAnswer, 
           </p>
         </div>
 
-        <FactTable question={question} maxSum={config.maxSum} />
+        {/* Bảng tính chỉ để hỗ trợ khi luyện tập; thi đấu thì bé tự tính */}
+        {config.mode === 'practice' && <FactTable question={question} maxSum={config.maxSum} />}
       </div>
 
       <div className="play-links">
-        <button type="button" className="link" onClick={onMenu}>
-          Về màn hình chính
-        </button>
         <button type="button" className="link" onClick={onToggleSound} aria-pressed={!soundOn}>
           {soundOn ? 'Tắt tiếng' : 'Bật tiếng'}
         </button>
@@ -433,6 +506,17 @@ function SaveNotice({ save, kidStars, won, canSave, compete }: SaveNoticeProps) 
         {kidStars !== null && ` Bé đang có ${kidStars} sao.`}
       </p>
     )
+  }
+  if (save.earned < 0) {
+    return (
+      <p className="save-notice bad">
+        <span className="star-drop">★</span> −{-save.earned} sao của bé {save.kidName}.
+        {kidStars !== null && ` Bé còn ${kidStars} sao.`} Cố lên ván sau nhé!
+      </p>
+    )
+  }
+  if (compete && !won) {
+    return <p className="save-notice muted">Bé {save.kidName} chưa có sao nào để bị trừ. Cố lên ván sau nhé!</p>
   }
   return <p className="save-notice muted">Đã lưu lượt chơi của bé {save.kidName}.</p>
 }

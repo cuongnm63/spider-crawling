@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { AccountCorner, RewardsPanel } from './components/Account.tsx'
 import { Scene } from './components/Scene.tsx'
-import { MenuPanel, PlayPanel, ResultPanel, type SaveState } from './components/Panels.tsx'
+import { MenuPanel, PlayPanel, ResultPanel, SettingsDialog, type SaveState } from './components/Panels.tsx'
+import { ParentGateDialog } from './components/ParentGate.tsx'
 import { earnsStars, loadConfig, saveConfig, type GameConfig } from './game/config.ts'
-import { loadDeck, saveDeck } from './game/deckStore.ts'
+import { loadDecks, saveDecks } from './game/deckStore.ts'
 import { gameReducer, initGame, outcomeAfterFeedback, type GameState } from './game/game.ts'
 import { deckSignature } from './game/questions.ts'
 import { setSoundEnabled, sfx, unlockAudio } from './game/sound.ts'
-import { recordPlay, STARS_PER_WIN, type Kid } from './services/account.ts'
+import { recordPlay, STARS_PER_LOSS, STARS_PER_WIN, type Kid } from './services/account.ts'
 import { useAccount } from './services/useAccount.ts'
 import './App.css'
 
@@ -19,6 +20,9 @@ function App() {
   const account = useAccount()
   const [screen, setScreen] = useState<'game' | 'rewards'>('game')
   const [save, setSave] = useState<SaveState | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // Đang hỏi phép nhân của phụ huynh trước khi mở cài đặt
+  const [gateOpen, setGateOpen] = useState(false)
 
   // Bé đang chơi mới nhất, đọc khi ván kết thúc để lưu kết quả
   const playerRef = useRef<{ uid: string; kid: Kid } | null>(null)
@@ -54,8 +58,8 @@ function App() {
 
   // Lưu phần bài còn lại để ván sau không lặp lại câu đã hỏi
   useEffect(() => {
-    if (state.phase !== 'menu') saveDeck(deckSignature(state.config), state.deck)
-  }, [state.phase, state.config, state.deck])
+    if (state.phase !== 'menu') saveDecks(deckSignature(state.config), state.decks)
+  }, [state.phase, state.config, state.decks])
 
   // Âm thanh đúng/sai, rồi giữ kết quả trên màn hình một lúc trước khi sang câu mới / kết thúc
   useEffect(() => {
@@ -105,7 +109,7 @@ function App() {
   const start = () => {
     unlockAudio()
     setSave(null)
-    dispatch({ type: 'start', config: settings, deck: loadDeck(deckSignature(settings)) })
+    dispatch({ type: 'start', config: settings, decks: loadDecks(deckSignature(settings)) })
   }
   const toMenu = () => {
     setSave(null)
@@ -118,11 +122,20 @@ function App() {
     setScreen('rewards')
   }
 
+  const onRewards = state.phase === 'menu' && screen === 'rewards' && !!account.user && !!account.kid
+  // Nút quay lại luôn nằm ở góc trái trên cùng của card
+  const back = onRewards
+    ? { label: 'Quay lại', onClick: () => setScreen('game') }
+    : state.phase !== 'menu'
+      ? { label: 'Màn hình chính', onClick: toMenu }
+      : null
+
   let starHint: string
   if (account.status === 'disabled') starHint = 'Chưa kết nối Firebase nên chưa lưu sao.'
-  else if (account.kid) starHint = `Thắng được ★ ${STARS_PER_WIN} sao cho bé ${account.kid.name}.`
-  else if (account.status === 'signedIn') starHint = 'Chọn bé ở góc phải để nhận ★ sao khi thắng.'
-  else starHint = 'Phụ huynh đăng nhập ở góc phải để bé nhận ★ sao khi thắng.'
+  else if (account.kid) {
+    starHint = `Bé ${account.kid.name}: thắng được ★ ${STARS_PER_WIN} sao, thua bị trừ ${STARS_PER_LOSS} sao.`
+  } else if (account.status === 'signedIn') starHint = 'Chọn bé ở góc phải để tính sao: thắng +1 ★, thua −1 ★.'
+  else starHint = 'Phụ huynh đăng nhập ở góc phải để tính sao: thắng +1 ★, thua −1 ★.'
 
   return (
     <main className="app">
@@ -130,23 +143,35 @@ function App() {
         <Scene
           config={sceneConfig}
           step={state.step}
-          mistakes={state.mistakes}
           phase={state.phase}
           feedback={state.feedback}
         />
       </div>
       <aside className="panel">
         <div className="panel-top">
-          <AccountCorner account={account} locked={state.phase === 'playing'} onOpenRewards={openRewards} />
+          {back ? (
+            <button type="button" className="panel-back" onClick={back.onClick}>
+              <span aria-hidden="true">←</span> {back.label}
+            </button>
+          ) : (
+            <span />
+          )}
+          <AccountCorner
+            account={account}
+            locked={state.phase === 'playing'}
+            onOpenRewards={openRewards}
+            onSignOut={() => void account.signOut()}
+          />
         </div>
         {state.phase === 'menu' &&
           (screen === 'rewards' && account.user && account.kid ? (
-            <RewardsPanel uid={account.user.uid} kid={account.kid} onBack={() => setScreen('game')} />
+            <RewardsPanel uid={account.user.uid} kid={account.kid} />
           ) : (
             <MenuPanel
               starHint={starHint}
               settings={settings}
               onChange={updateSettings}
+              onEditSettings={() => setGateOpen(true)}
               onStart={start}
             />
           ))}
@@ -157,7 +182,6 @@ function App() {
             soundOn={settings.sound}
             onToggleSound={toggleSound}
             onAnswer={(value) => dispatch({ type: 'answer', value })}
-            onMenu={toMenu}
           />
         )}
         {(state.phase === 'won' || state.phase === 'burned') && (
@@ -171,6 +195,22 @@ function App() {
           />
         )}
       </aside>
+
+      {settingsOpen && state.phase === 'menu' && (
+        <SettingsDialog settings={settings} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />
+      )}
+
+      {/* Mỗi lần đổi cài đặt, phụ huynh phải làm đúng một phép nhân */}
+      {gateOpen && (
+        <ParentGateDialog
+          reason="Điền kết quả phép nhân để mở cài đặt."
+          onSuccess={() => {
+            setGateOpen(false)
+            setSettingsOpen(true)
+          }}
+          onClose={() => setGateOpen(false)}
+        />
+      )}
     </main>
   )
 }

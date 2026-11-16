@@ -1,5 +1,5 @@
 import type { GameConfig } from '../game/config.ts'
-import type { Feedback, Phase } from '../game/game.ts'
+import { fireStep, type Feedback, type Phase } from '../game/game.ts'
 import { Climber } from './Climber.tsx'
 
 const W = 400
@@ -31,7 +31,12 @@ const FLAME_LAYERS = [
 ]
 const CONFETTI_COLORS = ['#ffd23f', '#3ad1c6', '#ff7ab6', '#7cd35b', '#ff8a1f']
 
-const stepY = (i: number, steps: number) => GROUND_Y - (i / steps) * (GROUND_Y - ROOF_Y)
+/**
+ * Toạ độ y của bước i. Tường gồm các bước từ lowest (sát lửa) tới steps (nóc nhà);
+ * vạch xuất phát (bước 0) ở giữa nếu cho phép tụt xuống dưới.
+ */
+const stepY = (i: number, lowest: number, steps: number) =>
+  GROUND_Y - ((i - lowest) / (steps - lowest)) * (GROUND_Y - ROOF_Y)
 
 function flamePath(x0: number, w: number, h: number): string {
   const xm = x0 + w / 2
@@ -41,19 +46,26 @@ function flamePath(x0: number, w: number, h: number): string {
 interface Props {
   config: GameConfig
   step: number
-  mistakes: number
   phase: Phase
   feedback: Feedback | null
 }
 
-export function Scene({ config, step, mistakes, phase, feedback }: Props) {
+export function Scene({ config, step, phase, feedback }: Props) {
   const steps = config.stepsToWin
-  const shownStep = phase === 'burned' ? 0 : Math.min(step, steps)
-  const y = stepY(shownStep, steps)
-  const spacing = (GROUND_Y - ROOF_Y) / steps
+  const fire = fireStep(config)
+  // Bước thấp nhất còn an toàn nằm sát mặt đất, lửa ở ngay dưới
+  const lowest = fire + 1
+  const yOf = (i: number) => stepY(i, lowest, steps)
+  const spacing = (GROUND_Y - ROOF_Y) / (steps - lowest)
+  const shownStep = phase === 'burned' ? fire : Math.max(lowest, Math.min(step, steps))
+  const y = yOf(shownStep)
   const badgeR = Math.min(12, spacing * 0.42)
-  const danger = Math.min(1, mistakes / (config.maxMistakes + 1))
-  const fireScale = phase === 'burned' ? 4.6 : 0.6 + danger
+  // Càng gần lửa, lửa càng bốc cao (đo bằng số bước còn cách lửa)
+  const gap = Math.max(1, step - fire)
+  const danger = step >= 0 ? 0 : Math.min(1, 1 - (gap - 1) / (config.maxMistakes + 1))
+  // Ngọn lửa cao 95 đơn vị khi scale = 1; đỉnh lửa ở ngang bước có lửa, cao thêm khi nguy hiểm
+  const fireTop = yOf(fire) - danger * spacing * 0.8
+  const fireScale = phase === 'burned' ? 4.6 : Math.max(0.5, (H - fireTop) / 95)
   const motion = feedback ? (feedback.correct ? 'is-climbing' : 'is-sliding') : ''
 
   const windows: { x: number; y: number; lit: boolean }[] = []
@@ -67,7 +79,7 @@ export function Scene({ config, step, mistakes, phase, feedback }: Props) {
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="xMidYMax meet"
       role="img"
-      aria-label={`Nhện Nhí đang ở bước ${shownStep} trên ${steps}`}
+      aria-label={`Nhện Nhí đang ở bước ${Math.max(0, shownStep)} trên ${steps}`}
     >
       <defs>
         <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
@@ -110,9 +122,21 @@ export function Scene({ config, step, mistakes, phase, feedback }: Props) {
 
       {/* đường leo + điểm bám */}
       <rect x={158} y={ROOF_Y} width={84} height={H - ROOF_Y} rx={6} fill="#000" opacity={0.14} />
+      {/* điểm bám dưới vạch xuất phát: không đánh số để bé không đếm được số lần sai */}
+      {Array.from({ length: -lowest }, (_, k) => {
+        const hy = yOf(lowest + k)
+        return (
+          <g key={`low-${k}`} className="hold hold-low">
+            <ellipse cx={CX - 22} cy={hy - 3} rx={7} ry={4.5} />
+            <ellipse cx={CX + 22} cy={hy - 3} rx={7} ry={4.5} />
+          </g>
+        )
+      })}
+      {/* vạch xuất phát */}
+      <line className="start-line" x1={150} x2={250} y1={yOf(0)} y2={yOf(0)} />
       {Array.from({ length: steps }, (_, k) => {
         const i = k + 1
-        const hy = stepY(i, steps)
+        const hy = yOf(i)
         const reached = i <= shownStep
         const color = HOLD_COLORS[k % HOLD_COLORS.length]
         return (
@@ -159,7 +183,7 @@ export function Scene({ config, step, mistakes, phase, feedback }: Props) {
           />
         ))}
 
-      {/* lửa: cao dần theo số lần sai */}
+      {/* lửa: bốc cao dần khi Nhện Nhí tụt gần tới */}
       <g className="fire" style={{ transform: `scaleY(${fireScale})` }}>
         <rect x={EXT_X} y={H - 150} width={EXT_W} height={150} fill="url(#fire-glow)" opacity={0.5 + danger * 0.5} />
         {FLAME_LAYERS.map((layer) => (
@@ -183,7 +207,7 @@ export function Scene({ config, step, mistakes, phase, feedback }: Props) {
             key={i}
             className="smoke"
             cx={CX - 18 + i * 12}
-            cy={GROUND_Y - 60}
+            cy={yOf(fire) - 40}
             r={14}
             style={{ animationDelay: `${0.8 + i * 0.35}s` }}
           />

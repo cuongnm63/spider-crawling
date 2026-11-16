@@ -57,10 +57,12 @@ interface AccountCornerProps {
   /** Đang chơi: chỉ hiện tên và sao, không mở menu đổi bé */
   locked: boolean
   onOpenRewards: () => void
+  /** Đăng xuất (App hỏi mã PIN phụ huynh trước) */
+  onSignOut: () => void
 }
 
-/** Góc phải màn hình: nút đăng nhập Google, hoặc tên + sao của bé đang chơi (bấm để đổi bé, đổi quà). */
-export function AccountCorner({ account, locked, onOpenRewards }: AccountCornerProps) {
+/** Góc phải màn hình: nút đăng nhập Google, hoặc nút đổi quà + tên và sao của bé đang chơi (bấm để đổi bé). */
+export function AccountCorner({ account, locked, onOpenRewards, onSignOut }: AccountCornerProps) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -110,13 +112,28 @@ export function AccountCorner({ account, locked, onOpenRewards }: AccountCornerP
 
   return (
     <div className="corner" ref={ref}>
+      {kid && (
+        <button
+          type="button"
+          className="corner-gift"
+          disabled={locked}
+          title={locked ? undefined : 'Đổi quà'}
+          onClick={() => {
+            setOpen(false)
+            onOpenRewards()
+          }}
+        >
+          <span aria-hidden="true">🎁</span>
+          <span className="corner-gift-label">Đổi quà</span>
+        </button>
+      )}
       <button
         type="button"
         className={`corner-btn${kid ? '' : ' empty'}`}
         aria-haspopup="true"
         aria-expanded={show}
         disabled={locked}
-        title={locked ? undefined : 'Đổi bé, đổi quà'}
+        title={locked ? undefined : 'Đổi bé'}
         onClick={() => {
           setOpen(!open)
           setAdding(false)
@@ -182,18 +199,6 @@ export function AccountCorner({ account, locked, onOpenRewards }: AccountCornerP
               onCancel={kids.length > 0 ? () => setAdding(false) : undefined}
             />
           )}
-          {kid && (
-            <button
-              type="button"
-              className="btn-small primary-small corner-rewards"
-              onClick={() => {
-                setOpen(false)
-                onOpenRewards()
-              }}
-            >
-              🎁 Đổi quà
-            </button>
-          )}
           <div className="corner-foot">
             <span className="account-parent">Phụ huynh: {user?.displayName || user?.email}</span>
             <button
@@ -201,7 +206,7 @@ export function AccountCorner({ account, locked, onOpenRewards }: AccountCornerP
               className="link"
               onClick={() => {
                 setOpen(false)
-                void account.signOut()
+                onSignOut()
               }}
             >
               Đăng xuất
@@ -226,12 +231,13 @@ function RewardImage({ reward }: { reward: Reward }) {
   }
   return (
     <img
-      className="reward-photo"
+      className={reward.fit === 'contain' ? 'reward-photo contain' : 'reward-photo'}
       src={reward.image}
       alt={reward.title}
       width={480}
       height={360}
       loading="lazy"
+      referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
     />
   )
@@ -240,17 +246,26 @@ function RewardImage({ reward }: { reward: Reward }) {
 function RewardThumb({ rewardId }: { rewardId: string }) {
   const reward = REWARDS.find((r) => r.id === rewardId)
   if (!reward) return <span aria-hidden="true">🎁</span>
-  return <img className="redemption-thumb" src={reward.image} alt="" width={40} height={30} loading="lazy" />
+  return (
+    <img
+      className={reward.fit === 'contain' ? 'redemption-thumb contain' : 'redemption-thumb'}
+      src={reward.image}
+      alt=""
+      width={40}
+      height={30}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+    />
+  )
 }
 
 interface RewardsPanelProps {
   uid: string
   kid: Kid
-  onBack: () => void
 }
 
 /** Màn hình đổi quà (danh sách quà tạm thời trong src/game/rewards.ts). */
-export function RewardsPanel({ uid, kid, onBack }: RewardsPanelProps) {
+export function RewardsPanel({ uid, kid }: RewardsPanelProps) {
   const [history, setHistory] = useState<Redemption[]>([])
   const [confirming, setConfirming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -282,9 +297,6 @@ export function RewardsPanel({ uid, kid, onBack }: RewardsPanelProps) {
 
   return (
     <div className="rewards">
-      <button type="button" className="link back" onClick={onBack}>
-        ← Quay lại
-      </button>
       <h2>Đổi quà</h2>
       <p className="rewards-balance">
         Bé <b>{kid.name}</b> đang có <b className="star">★ {kid.stars}</b> sao
@@ -299,6 +311,11 @@ export function RewardsPanel({ uid, kid, onBack }: RewardsPanelProps) {
               <RewardImage reward={r} />
               <span className="reward-title">{r.title}</span>
               <span className="reward-cost">★ {r.cost}</span>
+              {r.link && (
+                <a className="reward-link" href={r.link} target="_blank" rel="noreferrer">
+                  Xem trên MyKingdom ↗
+                </a>
+              )}
               {confirming === r.id ? (
                 <div className="reward-confirm">
                   <button
