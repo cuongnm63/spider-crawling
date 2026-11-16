@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { REWARDS, type Reward } from '../game/rewards.ts'
 import { sfx } from '../game/sound.ts'
 import { NotEnoughStarsError, redeemReward, watchRedemptions, type Kid, type Redemption } from '../services/account.ts'
@@ -39,97 +39,177 @@ function AddKidForm({ onAdd, onCancel }: { onAdd: (name: string) => Promise<void
   )
 }
 
-interface AccountBarProps {
+function GoogleLogo() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h6a5 5 0 0 1-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z" />
+      <path fill="#34A853" d="M12 23c3 0 5.5-1 7.4-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.8 1.1-2.9 0-5.4-2-6.3-4.6H2v2.9A11 11 0 0 0 12 23z" />
+      <path fill="#FBBC05" d="M5.7 14c-.2-.7-.4-1.3-.4-2s.1-1.4.4-2V7.1H2a11 11 0 0 0 0 9.8L5.7 14z" />
+      <path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2 7.1L5.7 10c.9-2.7 3.4-4.6 6.3-4.6z" />
+    </svg>
+  )
+}
+
+const initial = (name: string) => ([...name.trim()][0] ?? '?').toUpperCase()
+
+interface AccountCornerProps {
   account: Account
+  /** Đang chơi: chỉ hiện tên và sao, không mở menu đổi bé */
+  locked: boolean
   onOpenRewards: () => void
 }
 
-/** Khu vực tài khoản ở màn hình chính: đăng nhập phụ huynh, chọn bé, xem sao. */
-export function AccountBar({ account, onOpenRewards }: AccountBarProps) {
+/** Góc phải màn hình: nút đăng nhập Google, hoặc tên + sao của bé đang chơi (bấm để đổi bé, đổi quà). */
+export function AccountCorner({ account, locked, onOpenRewards }: AccountCornerProps) {
+  const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
   const { status, kids, kid, user, error } = account
+  const show = open && !locked && status === 'signedIn'
 
-  if (status === 'disabled') {
-    return <p className="account-note">Chế độ chơi thử: chưa kết nối Firebase nên chưa lưu sao.</p>
-  }
+  useEffect(() => {
+    if (!show) return
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [show])
+
+  if (status === 'disabled') return null
   if (status === 'loading') {
-    return <div className="account account-muted">Đang kiểm tra đăng nhập…</div>
+    return (
+      <div className="corner">
+        <span className="corner-loading" role="status" aria-label="Đang kiểm tra đăng nhập" />
+      </div>
+    )
   }
   if (status === 'signedOut') {
     return (
-      <div className="account">
-        <p className="account-lead">Đăng nhập để lưu sao mỗi lần thắng và đổi quà.</p>
-        <button type="button" className="google-btn" onClick={() => void account.signIn()}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h6a5 5 0 0 1-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z" />
-            <path fill="#34A853" d="M12 23c3 0 5.5-1 7.4-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.8 1.1-2.9 0-5.4-2-6.3-4.6H2v2.9A11 11 0 0 0 12 23z" />
-            <path fill="#FBBC05" d="M5.7 14c-.2-.7-.4-1.3-.4-2s.1-1.4.4-2V7.1H2a11 11 0 0 0 0 9.8L5.7 14z" />
-            <path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2 7.1L5.7 10c.9-2.7 3.4-4.6 6.3-4.6z" />
-          </svg>
-          Phụ huynh đăng nhập Google
+      <div className="corner">
+        <button
+          type="button"
+          className="corner-google"
+          aria-label="Phụ huynh đăng nhập Google"
+          title="Phụ huynh đăng nhập Google để lưu sao"
+          onClick={() => void account.signIn()}
+        >
+          <GoogleLogo />
         </button>
-        {error && <p className="account-error">{error}</p>}
+        {error && <p className="corner-error">{error}</p>}
       </div>
     )
   }
 
   return (
-    <div className="account">
-      <div className="account-head">
-        <span>Ai đang chơi?</span>
-        <button type="button" className="link" onClick={() => void account.signOut()}>
-          Đăng xuất
-        </button>
-      </div>
+    <div className="corner" ref={ref}>
+      <button
+        type="button"
+        className={`corner-btn${kid ? '' : ' empty'}`}
+        aria-haspopup="true"
+        aria-expanded={show}
+        disabled={locked}
+        title={locked ? undefined : 'Đổi bé, đổi quà'}
+        onClick={() => {
+          setOpen(!open)
+          setAdding(false)
+        }}
+      >
+        {kid ? (
+          <>
+            <span className="avatar" aria-hidden="true">
+              {initial(kid.name)}
+            </span>
+            <span className="corner-name">{kid.name}</span>
+            <span className="corner-stars" key={kid.stars} aria-label={`${kid.stars} sao`}>
+              ★ {kid.stars}
+            </span>
+          </>
+        ) : (
+          <span className="corner-name">{kids.length ? 'Chọn bé' : '+ Thêm bé'}</span>
+        )}
+        {!locked && (
+          <span className="corner-caret" aria-hidden="true">
+            ▾
+          </span>
+        )}
+      </button>
 
-      {kids.length > 0 && (
-        <div className="kid-list" role="radiogroup" aria-label="Chọn bé">
-          {kids.map((k) => (
+      {show && (
+        <div className="corner-pop">
+          <div className="account-head">
+            <span>Ai đang chơi?</span>
+          </div>
+          {kids.length > 0 && (
+            <div className="kid-list" role="radiogroup" aria-label="Chọn bé">
+              {kids.map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={kid?.id === k.id}
+                  className={kid?.id === k.id ? 'kid active' : 'kid'}
+                  onClick={() => {
+                    account.selectKid(k.id)
+                    setOpen(false)
+                  }}
+                >
+                  <span className="kid-name">{k.name}</span>
+                  <span className="kid-stars">★ {k.stars}</span>
+                </button>
+              ))}
+              {!adding && (
+                <button type="button" className="kid add" onClick={() => setAdding(true)}>
+                  + Thêm bé
+                </button>
+              )}
+            </div>
+          )}
+          {(adding || kids.length === 0) && (
+            <AddKidForm
+              onAdd={async (name) => {
+                await account.addKid(name)
+                setAdding(false)
+                setOpen(false)
+              }}
+              onCancel={kids.length > 0 ? () => setAdding(false) : undefined}
+            />
+          )}
+          {kid && (
             <button
-              key={k.id}
               type="button"
-              role="radio"
-              aria-checked={kid?.id === k.id}
-              className={kid?.id === k.id ? 'kid active' : 'kid'}
-              onClick={() => account.selectKid(kid?.id === k.id ? null : k.id)}
+              className="btn-small primary-small corner-rewards"
+              onClick={() => {
+                setOpen(false)
+                onOpenRewards()
+              }}
             >
-              <span className="kid-name">{k.name}</span>
-              <span className="kid-stars">★ {k.stars}</span>
-            </button>
-          ))}
-          {!adding && (
-            <button type="button" className="kid add" onClick={() => setAdding(true)}>
-              + Thêm bé
+              🎁 Đổi quà
             </button>
           )}
+          <div className="corner-foot">
+            <span className="account-parent">Phụ huynh: {user?.displayName || user?.email}</span>
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setOpen(false)
+                void account.signOut()
+              }}
+            >
+              Đăng xuất
+            </button>
+          </div>
+          {error && <p className="account-error">{error}</p>}
         </div>
       )}
-
-      {(adding || kids.length === 0) && (
-        <AddKidForm
-          onAdd={async (name) => {
-            await account.addKid(name)
-            setAdding(false)
-          }}
-          onCancel={kids.length > 0 ? () => setAdding(false) : undefined}
-        />
-      )}
-
-      {kid ? (
-        <div className="kid-summary">
-          <span>
-            Bé <b>{kid.name}</b> có <b className="star">★ {kid.stars}</b> sao
-          </span>
-          <button type="button" className="btn-small primary-small" onClick={onOpenRewards}>
-            Đổi quà
-          </button>
-        </div>
-      ) : (
-        kids.length > 0 && <p className="account-note">Chọn tên bé để được lưu sao khi thắng.</p>
-      )}
-
-      <p className="account-parent">Phụ huynh: {user?.displayName || user?.email}</p>
-      {error && <p className="account-error">{error}</p>}
     </div>
   )
 }

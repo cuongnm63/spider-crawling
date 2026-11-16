@@ -2,11 +2,13 @@ import {
   BLANK_OPTIONS,
   CONFIG_FIELDS,
   DEFAULT_CONFIG,
+  MODE_OPTIONS,
   OPERATION_OPTIONS,
+  timeLimitOf,
   type GameConfig,
 } from '../game/config.ts'
 import { factTable, type Op, type Question, type Slot } from '../game/questions.ts'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import type { GameState } from '../game/game.ts'
 import { sfx } from '../game/sound.ts'
 
@@ -54,34 +56,59 @@ function Segmented<T extends string>({ label, hint, value, options, onChange }: 
 }
 
 interface MenuProps {
-  /** Khu vực tài khoản (đăng nhập, chọn bé) hiện dưới tiêu đề */
-  header?: ReactNode
+  /** Dòng giải thích việc nhận sao ở chế độ thi đấu (theo trạng thái đăng nhập) */
+  starHint: string
   settings: GameConfig
   onChange: (config: GameConfig) => void
   onStart: () => void
 }
 
-export function MenuPanel({ header, settings, onChange, onStart }: MenuProps) {
-  const { stepsToWin, maxMistakes, slideOnWrong, maxSum, operation } = settings
+export function MenuPanel({ starHint, settings, onChange, onStart }: MenuProps) {
+  const { stepsToWin, maxMistakes, slideOnWrong, maxSum, operation, mode } = settings
+  const compete = mode === 'compete'
   const opRule = OPERATION_OPTIONS.find((o) => o.value === operation)?.rule
   return (
     <div className="menu">
       <h1>
         Nhện Nhí <span>Leo Tường</span>
       </h1>
-      {header}
+
+      <div className="modes" role="radiogroup" aria-label="Chế độ chơi">
+        {MODE_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={mode === o.value}
+            className={`mode mode-${o.value}${mode === o.value ? ' active' : ''}`}
+            onClick={() => onChange({ ...settings, mode: o.value })}
+          >
+            <span className="mode-icon" aria-hidden="true">
+              {o.icon}
+            </span>
+            <span className="mode-label">{o.label}</span>
+            <span className="mode-hint">{o.hint}</span>
+          </button>
+        ))}
+      </div>
+
       <ul className="rules">
         <li>
           Trả lời đúng {opRule} trong phạm vi {maxSum}: leo lên 1 bước.
         </li>
         <li>{slideOnWrong > 0 ? `Trả lời sai: tụt xuống ${slideOnWrong} bước.` : 'Trả lời sai: đứng yên.'}</li>
         <li>Leo đủ {stepsToWin} bước là thắng.</li>
-        {settings.timeLimit > 0 && <li>Mỗi câu có {settings.timeLimit} giây, hết giờ tính là sai.</li>}
+        {compete && <li>Mỗi câu có {settings.timeLimit} giây, hết giờ tính là sai.</li>}
         <li>
           {maxMistakes > 0
             ? `Được sai ${maxMistakes} lần, sai lần thứ ${maxMistakes + 1} sẽ bị lửa đốt.`
             : 'Không được sai lần nào, sai là bị lửa đốt.'}
         </li>
+        {compete ? (
+          <li className="rule-star">{starHint}</li>
+        ) : (
+          <li>Luyện tập thoải mái, không tính giờ và không tính sao.</li>
+        )}
       </ul>
 
       <section className="settings" aria-labelledby="settings-title">
@@ -105,7 +132,7 @@ export function MenuPanel({ header, settings, onChange, onStart }: MenuProps) {
           options={BLANK_OPTIONS}
           onChange={(v) => onChange({ ...settings, blank: v })}
         />
-        {CONFIG_FIELDS.map((f) => {
+        {CONFIG_FIELDS.filter((f) => compete || !f.competeOnly).map((f) => {
           const value = settings[f.key]
           const step = f.step ?? 1
           return (
@@ -146,7 +173,7 @@ export function MenuPanel({ header, settings, onChange, onStart }: MenuProps) {
       </section>
 
       <button type="button" className="primary" onClick={onStart}>
-        Bắt đầu leo!
+        {compete ? 'Bắt đầu thi đấu!' : 'Bắt đầu luyện tập!'}
       </button>
     </div>
   )
@@ -177,6 +204,7 @@ export function PlayPanel({ state, onTimeout, soundOn, onToggleSound, onAnswer, 
   const { question, feedback, config, step, mistakes } = state
   const remaining = Math.max(0, config.maxMistakes - mistakes)
   const status = feedback ? (feedback.correct ? 'good' : 'bad') : ''
+  const timeLimit = timeLimitOf(config)
 
   return (
     <div className="play">
@@ -215,8 +243,8 @@ export function PlayPanel({ state, onTimeout, soundOn, onToggleSound, onAnswer, 
             <QuestionSlot question={question} slot="result" revealed={!!feedback} />
           </div>
 
-          {config.timeLimit > 0 && (
-            <Timer key={state.round} limit={config.timeLimit} paused={!!feedback} onExpire={onTimeout} />
+          {timeLimit > 0 && (
+            <Timer key={state.round} limit={timeLimit} paused={!!feedback} onExpire={onTimeout} />
           )}
 
           <div className="choices">
@@ -362,7 +390,7 @@ export function ResultPanel({ state, save, kidStars, canSave, onRestart, onMenu 
             : `Nhện Nhí đã lên tới nóc nhà, sai ${state.mistakes} lần.`
           : `Nhện Nhí leo cao nhất được ${state.bestStep}/${state.config.stepsToWin} bước. Thử lại nhé!`}
       </p>
-      <SaveNotice save={save} kidStars={kidStars} won={won} canSave={canSave} />
+      <SaveNotice save={save} kidStars={kidStars} won={won} canSave={canSave} compete={state.config.mode === 'compete'} />
       <div className="result-actions">
         <button type="button" className="primary" onClick={onRestart} autoFocus>
           Chơi lại
@@ -375,11 +403,24 @@ export function ResultPanel({ state, save, kidStars, canSave, onRestart, onMenu 
   )
 }
 
-function SaveNotice({ save, kidStars, won, canSave }: { save: SaveState | null; kidStars: number | null; won: boolean; canSave: boolean }) {
+interface SaveNoticeProps {
+  save: SaveState | null
+  kidStars: number | null
+  won: boolean
+  canSave: boolean
+  compete: boolean
+}
+
+function SaveNotice({ save, kidStars, won, canSave, compete }: SaveNoticeProps) {
   if (!save) {
-    return won && canSave ? (
-      <p className="save-notice muted">Đăng nhập và chọn tên bé ở màn hình chính để được lưu sao.</p>
-    ) : null
+    if (!won || !canSave) return null
+    return (
+      <p className="save-notice muted">
+        {compete
+          ? 'Đăng nhập và chọn bé ở góc phải để được lưu sao.'
+          : 'Luyện tập không tính sao. Chọn chế độ Thi đấu để nhận ★ sao nhé!'}
+      </p>
+    )
   }
   if (save.status === 'saving') return <p className="save-notice muted">Đang lưu cho bé {save.kidName}…</p>
   if (save.status === 'error') {

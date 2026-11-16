@@ -14,7 +14,16 @@ export const BLANK_OPTIONS: { value: BlankMode; label: string }[] = [
   { value: 'mix', label: 'Cả hai' },
 ]
 
+export type Mode = 'practice' | 'compete'
+
+export const MODE_OPTIONS: { value: Mode; label: string; icon: string; hint: string }[] = [
+  { value: 'practice', label: 'Luyện tập', icon: '🧩', hint: 'Không tính giờ, không tính sao' },
+  { value: 'compete', label: 'Thi đấu', icon: '🏆', hint: 'Có đồng hồ, thắng được ★ sao' },
+]
+
 export interface GameConfig {
+  /** Luyện tập: không giới hạn giờ, không được sao. Thi đấu: có đồng hồ, thắng được sao */
+  mode: Mode
   /** Loại phép tính: cộng, trừ hoặc trộn lẫn */
   operation: Operation
   /** Dạng câu hỏi: tìm kết quả (1 + 3 = ?), tìm số trong ô (1 + ☐ = 4) hoặc trộn lẫn */
@@ -27,24 +36,31 @@ export interface GameConfig {
   slideOnWrong: number
   /** Tính trong phạm vi (số lớn nhất xuất hiện trong phép tính) */
   maxSum: number
-  /** Số giây để trả lời mỗi câu; 0 = không giới hạn. Hết giờ tính là sai */
+  /** Số giây để trả lời mỗi câu ở chế độ thi đấu. Hết giờ tính là sai */
   timeLimit: number
   /** Bật/tắt hiệu ứng âm thanh */
   sound: boolean
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
+  mode: 'practice',
   operation: 'add',
   blank: 'result',
   stepsToWin: 10,
   maxMistakes: 3,
   slideOnWrong: 1,
   maxSum: 10,
-  timeLimit: 0,
+  timeLimit: 10,
   sound: true,
 }
 
-export type NumericKey = Exclude<keyof GameConfig, 'operation' | 'blank' | 'sound'>
+export type NumericKey = Exclude<keyof GameConfig, 'mode' | 'operation' | 'blank' | 'sound'>
+
+/** Số giây mỗi câu thực tế; 0 = không giới hạn (chế độ luyện tập) */
+export const timeLimitOf = (config: GameConfig) => (config.mode === 'compete' ? config.timeLimit : 0)
+
+/** Ván này thắng có được sao không */
+export const earnsStars = (config: GameConfig) => config.mode === 'compete'
 
 export interface ConfigField {
   key: NumericKey
@@ -56,6 +72,8 @@ export interface ConfigField {
   step?: number
   /** Cách hiển thị giá trị (mặc định là số) */
   format?: (value: number) => string
+  /** Chỉ hiện ở chế độ thi đấu */
+  competeOnly?: boolean
 }
 
 export const CONFIG_FIELDS: ConfigField[] = [
@@ -67,10 +85,11 @@ export const CONFIG_FIELDS: ConfigField[] = [
     key: 'timeLimit',
     label: 'Thời gian mỗi câu',
     hint: 'Hết giờ tính là trả lời sai',
-    min: 0,
+    min: 5,
     max: 60,
     step: 5,
-    format: (v) => (v === 0 ? 'Tắt' : `${v}s`),
+    format: (v) => `${v}s`,
+    competeOnly: true,
   },
 ]
 
@@ -83,6 +102,10 @@ function clamp(value: unknown, min: number, max: number, fallback: number): numb
 
 export function normalizeConfig(raw: Partial<Record<keyof GameConfig, unknown>>): GameConfig {
   const out = { ...DEFAULT_CONFIG }
+  const mode = MODE_OPTIONS.find((o) => o.value === raw.mode)
+  if (mode) out.mode = mode.value
+  // Bản cũ lưu 0 = tắt đồng hồ; giờ tắt đồng hồ bằng chế độ luyện tập
+  if (Number(raw.timeLimit) <= 0) raw = { ...raw, timeLimit: undefined }
   const op = OPERATION_OPTIONS.find((o) => o.value === raw.operation)
   if (op) out.operation = op.value
   const blank = BLANK_OPTIONS.find((o) => o.value === raw.blank)

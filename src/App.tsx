@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { AccountBar, RewardsPanel } from './components/Account.tsx'
+import { AccountCorner, RewardsPanel } from './components/Account.tsx'
 import { Scene } from './components/Scene.tsx'
 import { MenuPanel, PlayPanel, ResultPanel, type SaveState } from './components/Panels.tsx'
-import { loadConfig, saveConfig, type GameConfig } from './game/config.ts'
+import { earnsStars, loadConfig, saveConfig, type GameConfig } from './game/config.ts'
 import { loadDeck, saveDeck } from './game/deckStore.ts'
 import { gameReducer, initGame, outcomeAfterFeedback, type GameState } from './game/game.ts'
 import { deckSignature } from './game/questions.ts'
 import { setSoundEnabled, sfx, unlockAudio } from './game/sound.ts'
-import { recordPlay, type Kid } from './services/account.ts'
+import { recordPlay, STARS_PER_WIN, type Kid } from './services/account.ts'
 import { useAccount } from './services/useAccount.ts'
 import './App.css'
 
@@ -28,7 +28,8 @@ function App() {
 
   const saveResult = (final: GameState, outcome: 'won' | 'burned') => {
     const player = playerRef.current
-    if (!player) return
+    // Chỉ chế độ thi đấu mới lưu lượt chơi và cộng sao
+    if (!player || !earnsStars(final.config)) return
     const kidName = player.kid.name
     setSave({ status: 'saving', kidName })
     recordPlay(player.uid, player.kid.id, {
@@ -112,6 +113,16 @@ function App() {
   }
   const onTimeout = useCallback(() => dispatch({ type: 'timeout' }), [])
   const sceneConfig = state.phase === 'menu' ? settings : state.config
+  const openRewards = () => {
+    if (state.phase !== 'menu') toMenu()
+    setScreen('rewards')
+  }
+
+  let starHint: string
+  if (account.status === 'disabled') starHint = 'Chưa kết nối Firebase nên chưa lưu sao.'
+  else if (account.kid) starHint = `Thắng được ★ ${STARS_PER_WIN} sao cho bé ${account.kid.name}.`
+  else if (account.status === 'signedIn') starHint = 'Chọn bé ở góc phải để nhận ★ sao khi thắng.'
+  else starHint = 'Phụ huynh đăng nhập ở góc phải để bé nhận ★ sao khi thắng.'
 
   return (
     <main className="app">
@@ -125,12 +136,15 @@ function App() {
         />
       </div>
       <aside className="panel">
+        <div className="panel-top">
+          <AccountCorner account={account} locked={state.phase === 'playing'} onOpenRewards={openRewards} />
+        </div>
         {state.phase === 'menu' &&
           (screen === 'rewards' && account.user && account.kid ? (
             <RewardsPanel uid={account.user.uid} kid={account.kid} onBack={() => setScreen('game')} />
           ) : (
             <MenuPanel
-              header={<AccountBar account={account} onOpenRewards={() => setScreen('rewards')} />}
+              starHint={starHint}
               settings={settings}
               onChange={updateSettings}
               onStart={start}

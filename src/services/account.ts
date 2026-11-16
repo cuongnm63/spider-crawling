@@ -116,9 +116,9 @@ export async function addKid(uid: string, name: string): Promise<string> {
 
 // ---------- Lượt chơi & sao ----------
 
-/** Lưu một lượt chơi; thắng thì cộng STARS_PER_WIN sao. Trả về số sao được cộng. */
+/** Lưu một lượt chơi; thắng ở chế độ thi đấu thì cộng STARS_PER_WIN sao. Trả về số sao được cộng. */
 export async function recordPlay(uid: string, kidId: string, play: PlayRecord): Promise<number> {
-  const earned = play.won ? STARS_PER_WIN : 0
+  const earned = play.won && play.config.mode === 'compete' ? STARS_PER_WIN : 0
   const batch = writeBatch(requireDb())
   batch.set(doc(collection(kidDoc(uid, kidId), 'plays')), {
     ...play,
