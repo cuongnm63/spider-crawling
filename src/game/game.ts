@@ -44,6 +44,14 @@ export function initGame(config: GameConfig): GameState {
   }
 }
 
+/** Kết quả ván chơi sau khi hiện xong câu trả lời hiện tại (null = chơi tiếp). */
+export function outcomeAfterFeedback(state: GameState): 'won' | 'burned' | null {
+  if (!state.feedback) return null
+  if (state.step >= state.config.stepsToWin) return 'won'
+  if (state.mistakes > state.config.maxMistakes) return 'burned'
+  return null
+}
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'start':
@@ -69,8 +77,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'advance': {
       if (!state.feedback) return state
-      if (state.step >= state.config.stepsToWin) return { ...state, phase: 'won', feedback: null }
-      if (state.mistakes > state.config.maxMistakes) return { ...state, phase: 'burned', feedback: null }
+      const outcome = outcomeAfterFeedback(state)
+      if (outcome) return { ...state, phase: outcome, feedback: null }
       return {
         ...state,
         feedback: null,

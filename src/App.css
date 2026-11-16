@@ -764,3 +764,279 @@ button:focus-visible {
     transition-duration: 0.15s !important;
   }
 }
+
+/* ---------- Tài khoản ---------- */
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.account-muted {
+  color: var(--muted);
+}
+.account-lead {
+  margin: 0;
+  font-weight: 600;
+}
+.account-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 700;
+}
+.account-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.account-parent {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+.google-btn:hover {
+  border-color: var(--primary);
+}
+.google-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.kid-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+.kid.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+.kid.add {
+  border-style: dashed;
+  color: var(--muted);
+}
+.kid-stars {
+  font-size: 0.85rem;
+  color: var(--gold);
+}
+.kid.active .kid-stars {
+  color: var(--primary-ink);
+}
+.add-kid {
+  display: flex;
+  gap: 8px;
+}
+.add-kid input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.add-kid input:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 1px;
+}
+.kid-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.star {
+  color: var(--gold);
+}
+.btn-small {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-small:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn-small.primary-small {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+/* ---------- Đổi quà ---------- */
+.rewards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rewards h2 {
+  font-size: 2rem;
+  font-weight: 800;
+}
+.rewards h3 {
+  margin: 8px 0 0;
+  font-size: 1.1rem;
+}
+.rewards .back {
+  align-self: flex-start;
+}
+.rewards-balance {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.reward-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.reward-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 10px;
+  border-radius: 16px;
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  text-align: center;
+}
+.reward-card.locked {
+  opacity: 0.7;
+}
+.reward-icon {
+  font-size: 2.2rem;
+  line-height: 1.2;
+}
+.reward-title {
+  font-weight: 700;
+  line-height: 1.2;
+  min-height: 2.4em;
+}
+.reward-cost {
+  color: var(--gold);
+  font-weight: 800;
+}
+.reward-card > .btn-small,
+.reward-confirm {
+  margin-top: 4px;
+}
+.reward-confirm {
+  display: flex;
+  gap: 6px;
+}
+.rewards-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.rewards-notice.good {
+  background: var(--good-bg);
+  color: var(--good);
+}
+.rewards-notice.bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.redemptions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.redemptions li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 0.95rem;
+}
+.redemption-cost {
+  color: var(--muted);
+  font-weight: 700;
+}
+.redemption-status {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.redemption-status.given {
+  color: var(--good);
+}
+
+/* ---------- Lưu sao ở màn kết quả ---------- */
+.save-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.save-notice.muted {
+  color: var(--muted);
+}
+.save-notice.good {
+  background: var(--good-bg);
+  color: var(--good);
+}
+.save-notice.bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.star-pop {
+  display: inline-block;
+  color: var(--gold);
+  font-size: 1.3em;
+  animation: star-pop 0.6s 1s both cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes star-pop {
+  from {
+    transform: scale(0) rotate(-90deg);
+  }
+}

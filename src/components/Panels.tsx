@@ -6,7 +6,7 @@ import {
   type GameConfig,
 } from '../game/config.ts'
 import { factTable, type Op, type Question, type Slot } from '../game/questions.ts'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { GameState } from '../game/game.ts'
 import { sfx } from '../game/sound.ts'
 
@@ -54,12 +54,14 @@ function Segmented<T extends string>({ label, hint, value, options, onChange }: 
 }
 
 interface MenuProps {
+  /** Khu vực tài khoản (đăng nhập, chọn bé) hiện dưới tiêu đề */
+  header?: ReactNode
   settings: GameConfig
   onChange: (config: GameConfig) => void
   onStart: () => void
 }
 
-export function MenuPanel({ settings, onChange, onStart }: MenuProps) {
+export function MenuPanel({ header, settings, onChange, onStart }: MenuProps) {
   const { stepsToWin, maxMistakes, slideOnWrong, maxSum, operation } = settings
   const opRule = OPERATION_OPTIONS.find((o) => o.value === operation)?.rule
   return (
@@ -67,6 +69,7 @@ export function MenuPanel({ settings, onChange, onStart }: MenuProps) {
       <h1>
         Nhện Nhí <span>Leo Tường</span>
       </h1>
+      {header}
       <ul className="rules">
         <li>
           Trả lời đúng {opRule} trong phạm vi {maxSum}: leo lên 1 bước.
@@ -330,13 +333,24 @@ function FactTable({ question, maxSum }: { question: Question; maxSum: number })
   )
 }
 
+export type SaveState =
+  | { status: 'saving'; kidName: string }
+  | { status: 'saved'; kidName: string; earned: number }
+  | { status: 'error'; kidName: string }
+
 interface ResultProps {
   state: GameState
+  /** Trạng thái lưu sao; null khi không có bé nào được chọn */
+  save: SaveState | null
+  /** Số sao hiện có của bé (cập nhật trực tiếp từ Firestore) */
+  kidStars: number | null
+  /** Có thể đăng nhập để lưu sao không (đã cấu hình Firebase) */
+  canSave: boolean
   onRestart: () => void
   onMenu: () => void
 }
 
-export function ResultPanel({ state, onRestart, onMenu }: ResultProps) {
+export function ResultPanel({ state, save, kidStars, canSave, onRestart, onMenu }: ResultProps) {
   const won = state.phase === 'won'
   return (
     <div className={`result ${won ? 'won' : 'burned'}`}>
@@ -348,6 +362,7 @@ export function ResultPanel({ state, onRestart, onMenu }: ResultProps) {
             : `Nhện Nhí đã lên tới nóc nhà, sai ${state.mistakes} lần.`
           : `Nhện Nhí leo cao nhất được ${state.bestStep}/${state.config.stepsToWin} bước. Thử lại nhé!`}
       </p>
+      <SaveNotice save={save} kidStars={kidStars} won={won} canSave={canSave} />
       <div className="result-actions">
         <button type="button" className="primary" onClick={onRestart} autoFocus>
           Chơi lại
@@ -358,4 +373,25 @@ export function ResultPanel({ state, onRestart, onMenu }: ResultProps) {
       </div>
     </div>
   )
+}
+
+function SaveNotice({ save, kidStars, won, canSave }: { save: SaveState | null; kidStars: number | null; won: boolean; canSave: boolean }) {
+  if (!save) {
+    return won && canSave ? (
+      <p className="save-notice muted">Đăng nhập và chọn tên bé ở màn hình chính để được lưu sao.</p>
+    ) : null
+  }
+  if (save.status === 'saving') return <p className="save-notice muted">Đang lưu cho bé {save.kidName}…</p>
+  if (save.status === 'error') {
+    return <p className="save-notice bad">Chưa lưu được sao cho bé {save.kidName}. Kiểm tra mạng nhé.</p>
+  }
+  if (save.earned > 0) {
+    return (
+      <p className="save-notice good">
+        <span className="star-pop">★</span> +{save.earned} sao cho bé {save.kidName}!
+        {kidStars !== null && ` Bé đang có ${kidStars} sao.`}
+      </p>
+    )
+  }
+  return <p className="save-notice muted">Đã lưu lượt chơi của bé {save.kidName}.</p>
 }
