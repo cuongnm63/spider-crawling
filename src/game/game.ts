@@ -1,5 +1,5 @@
 import type { GameConfig } from './config.ts'
-import { makeQuestion, type Question } from './questions.ts'
+import { drawQuestion, type Question } from './questions.ts'
 
 export type Phase = 'menu' | 'playing' | 'won' | 'burned'
 
@@ -18,6 +18,8 @@ export interface GameState {
   bestStep: number
   mistakes: number
   question: Question
+  /** Các phép tính chưa hỏi (bộ bài); rút dần để không lặp lại */
+  deck: string[]
   /** Số thứ tự câu hỏi, tăng mỗi câu mới (dùng để khởi động lại đồng hồ) */
   round: number
   /** Khác null khi đang hiện kết quả câu vừa trả lời (trước khi sang câu mới) */
@@ -25,20 +27,23 @@ export interface GameState {
 }
 
 export type GameAction =
-  | { type: 'start'; config: GameConfig }
+  /** deck: bộ bài còn lại từ lần chơi trước (nếu có) để ván mới không lặp câu cũ */
+  | { type: 'start'; config: GameConfig; deck?: string[] }
   | { type: 'answer'; value: number }
   | { type: 'timeout' }
   | { type: 'advance' }
   | { type: 'menu' }
 
-export function initGame(config: GameConfig): GameState {
+export function initGame(config: GameConfig, deck: string[] = []): GameState {
+  const draw = drawQuestion(config, deck)
   return {
     phase: 'menu',
     config,
     step: 0,
     bestStep: 0,
     mistakes: 0,
-    question: makeQuestion(config),
+    question: draw.question,
+    deck: draw.deck,
     round: 0,
     feedback: null,
   }
@@ -55,7 +60,7 @@ export function outcomeAfterFeedback(state: GameState): 'won' | 'burned' | null 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'start':
-      return { ...initGame(action.config), phase: 'playing' }
+      return { ...initGame(action.config, action.deck), phase: 'playing' }
 
     case 'menu':
       return initGame(state.config)
@@ -79,10 +84,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.feedback) return state
       const outcome = outcomeAfterFeedback(state)
       if (outcome) return { ...state, phase: outcome, feedback: null }
+      const draw = drawQuestion(state.config, state.deck, state.question)
       return {
         ...state,
         feedback: null,
-        question: makeQuestion(state.config, state.question),
+        question: draw.question,
+        deck: draw.deck,
         round: state.round + 1,
       }
     }

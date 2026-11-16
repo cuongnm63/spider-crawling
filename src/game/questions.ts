@@ -38,37 +38,63 @@ function pickSlot(blank: GameConfig['blank'], rng: Rng): Slot {
   return rng() < 0.5 ? 'result' : operand
 }
 
+/** Khoá của một phép tính (không tính vị trí ô trống), ví dụ "3+4" hoặc "7-2". */
+export const equationKey = (a: number, op: Op, b: number) => `${a}${op}${b}`
+
+/** Nhận dạng bộ bài theo cài đặt; đổi cài đặt thì dùng bộ bài mới. */
+export const deckSignature = ({ maxSum, operation }: QuestionOptions) => `${operation}:${maxSum}`
+
 /**
- * Phép cộng: a + b, tổng trong 1..maxSum.
- * Phép trừ: a − b, a trong 1..maxSum, kết quả không âm.
- * Ô trống có thể là kết quả hoặc một số hạng. Không lặp lại đúng câu vừa hỏi.
+ * Mọi phép tính có thể hỏi theo cài đặt:
+ * - Phép cộng: a + b, tổng trong 1..maxSum.
+ * - Phép trừ: a − b, a trong 1..maxSum, kết quả không âm.
  */
-export function makeQuestion(
-  { maxSum, operation, blank }: QuestionOptions,
+export function allEquations({ maxSum, operation }: Pick<QuestionOptions, 'maxSum' | 'operation'>): string[] {
+  const keys: string[] = []
+  if (operation !== 'sub') {
+    for (let a = 0; a <= maxSum; a++) for (let b = 0; a + b <= maxSum; b++) if (a + b > 0) keys.push(equationKey(a, '+', b))
+  }
+  if (operation !== 'add') {
+    for (let a = 1; a <= maxSum; a++) for (let b = 0; b <= a; b++) keys.push(equationKey(a, '-', b))
+  }
+  return keys
+}
+
+function parseKey(key: string): { a: number; op: Op; b: number } {
+  const m = /^(\d+)([+-])(\d+)$/.exec(key)
+  if (!m) throw new Error(`Khoá phép tính không hợp lệ: ${key}`)
+  return { a: Number(m[1]), op: m[2] as Op, b: Number(m[3]) }
+}
+
+/** Bộ bài mới đã xáo; nếu lá đầu trùng câu vừa hỏi thì đẩy xuống cuối. */
+export function newDeck(opts: QuestionOptions, avoidKey?: string | null, rng: Rng = Math.random): string[] {
+  const deck = shuffle(allEquations(opts), rng)
+  if (deck.length > 1 && deck[0] === avoidKey) deck.push(deck.shift() as string)
+  return deck
+}
+
+/**
+ * Rút câu hỏi tiếp theo từ bộ bài: không phép tính nào lặp lại cho tới khi dùng hết bộ bài,
+ * hết thì xáo bộ mới (không trùng ngay câu vừa hỏi). Trả về câu hỏi và phần bài còn lại.
+ */
+export function drawQuestion(
+  opts: QuestionOptions,
+  deck: string[],
   prev?: Question | null,
   rng: Rng = Math.random,
-): Question {
-  let a = 0
-  let b = 0
-  let op: Op = '+'
-  let hidden: Slot = 'result'
-  for (let attempt = 0; attempt < 20; attempt++) {
-    op = operation === 'add' ? '+' : operation === 'sub' ? '-' : rng() < 0.5 ? '+' : '-'
-    hidden = pickSlot(blank, rng)
-    const big = randInt(rng, 1, maxSum)
-    const part = randInt(rng, 0, big)
-    if (op === '+') {
-      a = part
-      b = big - part
-    } else {
-      a = big
-      b = part
-    }
-    if (!prev || prev.a !== a || prev.b !== b || prev.op !== op || prev.hidden !== hidden) break
-  }
+): { question: Question; deck: string[] } {
+  const valid = new Set(allEquations(opts))
+  let rest = deck.filter((k) => valid.has(k))
+  if (rest.length === 0) rest = newDeck(opts, prev ? equationKey(prev.a, prev.op, prev.b) : null, rng)
+  const [key, ...remaining] = rest
+  const { a, op, b } = parseKey(key)
+  const hidden = pickSlot(opts.blank, rng)
   const result = compute(a, op, b)
   const answer = hidden === 'a' ? a : hidden === 'b' ? b : result
-  return { a, b, op, result, hidden, answer, choices: makeChoices(answer, maxSum, rng) }
+  return {
+    question: { a, b, op, result, hidden, answer, choices: makeChoices(answer, opts.maxSum, rng) },
+    deck: remaining,
+  }
 }
 
 /** 4 đáp án (hoặc ít hơn nếu phạm vi nhỏ): đáp án đúng, tối đa 2 số gần, còn lại ngẫu nhiên. */

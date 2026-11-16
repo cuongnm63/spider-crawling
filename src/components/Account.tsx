@@ -134,6 +134,35 @@ export function AccountBar({ account, onOpenRewards }: AccountBarProps) {
   )
 }
 
+/** Ảnh thật của món quà; nếu ảnh lỗi thì hiện biểu tượng dự phòng. */
+function RewardImage({ reward }: { reward: Reward }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <span className="reward-icon" aria-hidden="true">
+        {reward.icon}
+      </span>
+    )
+  }
+  return (
+    <img
+      className="reward-photo"
+      src={reward.image}
+      alt={reward.title}
+      width={480}
+      height={360}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
+function RewardThumb({ rewardId }: { rewardId: string }) {
+  const reward = REWARDS.find((r) => r.id === rewardId)
+  if (!reward) return <span aria-hidden="true">🎁</span>
+  return <img className="redemption-thumb" src={reward.image} alt="" width={40} height={30} loading="lazy" />
+}
+
 interface RewardsPanelProps {
   uid: string
   kid: Kid
@@ -170,7 +199,6 @@ export function RewardsPanel({ uid, kid, onBack }: RewardsPanelProps) {
     }
   }
 
-  const iconOf = (rewardId: string) => REWARDS.find((r) => r.id === rewardId)?.icon ?? '🎁'
 
   return (
     <div className="rewards">
@@ -188,9 +216,7 @@ export function RewardsPanel({ uid, kid, onBack }: RewardsPanelProps) {
           const enough = kid.stars >= r.cost
           return (
             <div key={r.id} className={enough ? 'reward-card' : 'reward-card locked'}>
-              <span className="reward-icon" aria-hidden="true">
-                {r.icon}
-              </span>
+              <RewardImage reward={r} />
               <span className="reward-title">{r.title}</span>
               <span className="reward-cost">★ {r.cost}</span>
               {confirming === r.id ? (
@@ -235,8 +261,9 @@ export function RewardsPanel({ uid, kid, onBack }: RewardsPanelProps) {
         <ul className="redemptions">
           {history.map((h) => (
             <li key={h.id}>
-              <span>
-                {iconOf(h.rewardId)} {h.title}
+              <span className="redemption-title">
+                <RewardThumb rewardId={h.rewardId} />
+                {h.title}
               </span>
               <span className="redemption-cost">−{h.cost} ★</span>
               <span className={`redemption-status ${h.status}`}>{h.status === 'given' ? 'Đã nhận' : 'Chờ nhận quà'}</span>

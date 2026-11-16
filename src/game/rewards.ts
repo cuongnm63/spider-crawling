@@ -3,20 +3,25 @@ export interface Reward {
   title: string
   /** Số sao cần để đổi */
   cost: number
-  /** Biểu tượng tạm thời */
+  /** Ảnh thật của món quà (đặt trong public/rewards/) */
+  image: string
+  /** Biểu tượng dự phòng khi ảnh chưa tải được */
   icon: string
 }
 
+const img = (file: string) => `${import.meta.env.BASE_URL}rewards/${file}`
+
 /**
- * DANH SÁCH QUÀ TẠM THỜI (placeholder).
- * Sửa tên, giá sao hoặc thêm/bớt quà ở đây. Khi cần phụ huynh tự quản lý quà
- * có thể chuyển danh sách này lên Firestore.
+ * Danh sách quà. Sửa tên, giá sao hoặc thêm/bớt quà ở đây
+ * (ảnh mới đặt vào public/rewards/, nên thu nhỏ còn khoảng 480px).
+ *
+ * Nguồn ảnh (Wikimedia Commons, không cần ghi công):
+ * - tv.jpg: "Plasma display.jpg", phạm vi công cộng (public domain)
+ *   https://commons.wikimedia.org/wiki/File:Plasma_display.jpg
+ * - hotwheels.jpg: "HOT WHEELS MAINLINE 2013 - CHEVY CAMARO.jpg", CC0
+ *   https://commons.wikimedia.org/wiki/File:HOT_WHEELS_MAINLINE_2013_-_CHEVY_CAMARO.jpg
  */
 export const REWARDS: Reward[] = [
-  { id: 'sticker', title: 'Hình dán siêu nhện', cost: 3, icon: '🕷️' },
-  { id: 'cartoon', title: '15 phút xem hoạt hình', cost: 5, icon: '📺' },
-  { id: 'icecream', title: 'Một que kem', cost: 8, icon: '🍦' },
-  { id: 'park', title: 'Đi chơi công viên', cost: 12, icon: '🎡' },
-  { id: 'book', title: 'Một cuốn truyện mới', cost: 15, icon: '📚' },
-  { id: 'toy', title: 'Đồ chơi bất ngờ', cost: 25, icon: '🎁' },
+  { id: 'tv', title: 'Xem Tivi', cost: 15, image: img('tv.jpg'), icon: '📺' },
+  { id: 'hotwheels', title: 'Đồ chơi Hot Wheels', cost: 30, image: img('hotwheels.jpg'), icon: '🏎️' },
 ]

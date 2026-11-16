@@ -3,7 +3,9 @@ import { AccountBar, RewardsPanel } from './components/Account.tsx'
 import { Scene } from './components/Scene.tsx'
 import { MenuPanel, PlayPanel, ResultPanel, type SaveState } from './components/Panels.tsx'
 import { loadConfig, saveConfig, type GameConfig } from './game/config.ts'
+import { loadDeck, saveDeck } from './game/deckStore.ts'
 import { gameReducer, initGame, outcomeAfterFeedback, type GameState } from './game/game.ts'
+import { deckSignature } from './game/questions.ts'
 import { setSoundEnabled, sfx, unlockAudio } from './game/sound.ts'
 import { recordPlay, type Kid } from './services/account.ts'
 import { useAccount } from './services/useAccount.ts'
@@ -48,6 +50,11 @@ function App() {
   })
 
   useEffect(() => setSoundEnabled(settings.sound), [settings.sound])
+
+  // Lưu phần bài còn lại để ván sau không lặp lại câu đã hỏi
+  useEffect(() => {
+    if (state.phase !== 'menu') saveDeck(deckSignature(state.config), state.deck)
+  }, [state.phase, state.config, state.deck])
 
   // Âm thanh đúng/sai, rồi giữ kết quả trên màn hình một lúc trước khi sang câu mới / kết thúc
   useEffect(() => {
@@ -97,7 +104,7 @@ function App() {
   const start = () => {
     unlockAudio()
     setSave(null)
-    dispatch({ type: 'start', config: settings })
+    dispatch({ type: 'start', config: settings, deck: loadDeck(deckSignature(settings)) })
   }
   const toMenu = () => {
     setSave(null)
